@@ -2,6 +2,7 @@
 Primer Proyecto - Trabajo Especial - "Algoritmo de Thompson"
 @authors: Araya Valentino, Conforti Angelo, Duran Faustino, Patiño Ignacio.
 """
+from graphviz import Digraph
 
 # 1. Convertir la Expresión Regular a un AFND mediante Algoritmo de Thompson
 
@@ -62,54 +63,130 @@ def union(afnd1, afnd2):
     newAfnd.estadoFinal = final
     return newAfnd
 
+# Función Estrella de Kleene
+def estrellaKleene(afnd):
+    # 1. El estado inicial deja de ser inicial y el final deja de ser final y se crea un nuevo estado inicial y un nuevo estado final
+    inicial = Estado()
+    final = Estado(final=True)
+    afnd.estadoFinal.final = False
+    # 2. Se agregan transiciones Lambda desde el nuevo estado inicial a el ex estado inicial y al nuevo estado final
+    inicial.transiciones["λ"] = [afnd.estadoInicial, final]
+    # 3. Se agregan transiciones Lambda desde el ex estado final hacia el nuevo estado final y hacia el ex estado inicial
+    afnd.estadoFinal.transiciones["λ"] = [afnd.estadoInicial, final]
+    newAfnd = AFND()
+    newAfnd.estadoInicial = inicial
+    newAfnd.estadoFinal = final
+    return newAfnd
+
 # Creamos la función algoritmo_thompson para armar el AFND final mediante las operaciones        
 def algoritmo_thompson(expresionRegular):
     
     pilaAutomatas = []
     
+    # Manejo de las Estrellas de Kleene
+    pilaEstrellasKleene =[]  # Array para guardar los autómatas creados con Estrellas de Kleene   
+    nuevaExpresionRegular = "" # Creamos una nueva expresión regular reemplazando el caracter afectado por una estrella de Kleene por un "@"
+    nuevaExpresionRegularDefinitiva = "" # Esta variable guarda la ER sin los "*" para que luego pueda ser bien manejada
+    contadorArrobas = 0 # Cuento los @ en la ER definitiva para luego buscarlos por índices en la lista "pilaEstrellasKleene"
+    
+    if "*" in expresionRegular: # Si existe una Estrella de Kleene en la expresión...
+        for i in range(len(expresionRegular)):
+            if expresionRegular[i] == "*" and expresionRegular[i-1] != ")":
+                afndBasico = afnd_basico(expresionRegular[i-1])
+                afndFinal = estrellaKleene(afndBasico)
+                pilaEstrellasKleene.append(afndFinal)
+                
+        for i in range(len(expresionRegular)):    
+            if i != len(expresionRegular)-1 and expresionRegular[i+1] != "*":
+                nuevaExpresionRegular += expresionRegular[i]
+            elif i != len(expresionRegular)-1 and expresionRegular[i+1] == "*":
+                nuevaExpresionRegular += "@"
+            elif i == len(expresionRegular)-1:
+                nuevaExpresionRegular += expresionRegular[i]            
+        
+        nuevaExpresionRegularDefinitiva = nuevaExpresionRegular.replace("*", "")            
+
+    if nuevaExpresionRegularDefinitiva == "":
+        nuevaExpresionRegularDefinitiva = expresionRegular    
+                
     # Recorremos la expresión regular
-    for i in range(len(expresionRegular)):
+    for i in range(len(nuevaExpresionRegularDefinitiva)):
                 
         # Creamos un AF básico para el primer caracter
-        if i == 0 and expresionRegular[i] != "(":
-            afnd = afnd_basico(expresionRegular[i])
-            pilaAutomatas.append(afnd)
-        
+        if i == 0 and nuevaExpresionRegularDefinitiva[i] != "(":
+            if nuevaExpresionRegularDefinitiva[i] != "@":
+                afnd = afnd_basico(nuevaExpresionRegularDefinitiva[i])
+                pilaAutomatas.append(afnd)
+            else:
+                afndEstrellaKleene = pilaEstrellasKleene[contadorArrobas]
+                pilaAutomatas.append(afndEstrellaKleene)
+                contadorArrobas+=1        
         # Caso de Concatenación
-        elif expresionRegular[i] == "." and i != len(expresionRegular)-1 and expresionRegular[i+1] != "(":
-            # Creamos AF básico del caracter siguiente a la concatenación        
-            afnd2 = afnd_basico(expresionRegular[i+1])
-            afnd1 = pilaAutomatas.pop()
+        elif nuevaExpresionRegularDefinitiva[i] == "." and i != len(nuevaExpresionRegularDefinitiva)-1 and nuevaExpresionRegularDefinitiva[i+1] != "(":
+            if nuevaExpresionRegularDefinitiva[i+1] == "@":
+                afndEstrellaKleene = pilaEstrellasKleene[contadorArrobas]
+                afnd1 = pilaAutomatas.pop()
+                newAfnd = concatenacion(afnd1, afndEstrellaKleene)
+                pilaAutomatas.append(newAfnd)
+                contadorArrobas += 1
+            else:
+                # Creamos AF básico del caracter siguiente a la concatenación        
+                afnd2 = afnd_basico(nuevaExpresionRegularDefinitiva[i+1])
+                afnd1 = pilaAutomatas.pop()
             
-            # Aplico concatenación
-            newAfnd = concatenacion(afnd1, afnd2)
-            
-            # Agregamos a la pila
-            pilaAutomatas.append(newAfnd)
+                # Aplico concatenación
+                newAfnd = concatenacion(afnd1, afnd2)
+        
+                # Agregamos a la pila
+                pilaAutomatas.append(newAfnd)
             
         # Caso de Unión
-        elif expresionRegular[i] == "|" and i != len(expresionRegular)-1 and expresionRegular[i+1] != "(":
-            # Creamos AF básico del caracter siguiente a la unión
-            afnd2 = afnd_basico(expresionRegular[i+1])
-            afnd1 = pilaAutomatas.pop()
-                      
-            # Aplico unión
-            newAfnd = union(afnd1, afnd2)  
+        elif nuevaExpresionRegularDefinitiva[i] == "|" and i != len(nuevaExpresionRegularDefinitiva)-1 and nuevaExpresionRegularDefinitiva[i+1] != "(":
+            if nuevaExpresionRegularDefinitiva[i+1] == "@":
+                afndEstrellaKleene = pilaEstrellasKleene[contadorArrobas]
+                afnd1 = pilaAutomatas.pop()
+                newAfnd = union(afnd1, afndEstrellaKleene)
+                pilaAutomatas.append(newAfnd)
+                contadorArrobas += 1
+            else:
+                
+                # Creamos AF básico del caracter siguiente a la unión
+                afnd2 = afnd_basico(nuevaExpresionRegularDefinitiva[i+1])
+                afnd1 = pilaAutomatas.pop()
+
+                # Aplico unión
+                newAfnd = union(afnd1, afnd2)  
             
-            # Agrego a la pila
-            pilaAutomatas.append(newAfnd)
+                # Agrego a la pila
+                pilaAutomatas.append(newAfnd)
             
-        # ESTRELLA DE KLEENE TENDRÁ 2 LÓGICAS:
-        #   1. Si es hacia un caracter -> Devolver AF
-        #   2. Si es hacia una agrupación -> Resolver agrupación, devolver AF y luego aplicarle Estrella de Kleene
-        
-        # TRATAR LAS AGRUPACIONES APARTE Y CONTAR AGRUPACIONES
-            
-        print(pilaAutomatas)
-        
-        
-            
-algoritmo_thompson("a.b|c.")
-            
-            
-   
+    return pilaAutomatas.pop()
+
+# Visualizar el Autómata
+
+def visualize_nfa(afnd):
+    dot = Digraph()
+    
+    def add_state(estado, estadosAgregados):
+        if estado not in estadosAgregados:
+            estadosAgregados.add(estado)
+            for caracter, estadoSiguiente in estado.transiciones.items():
+                if isinstance(estadoSiguiente, list):
+                    for ns in estadoSiguiente:
+                        dot.edge(str(id(estado)), str(id(ns)), label=caracter)
+                        add_state(ns, estadosAgregados)
+                else:
+                    dot.edge(str(id(estado)), str(id(estadoSiguiente)), label=caracter)
+                    add_state(estadoSiguiente, estadosAgregados)
+            if estado.final:
+                dot.node(str(id(estado)), shape='doublecircle')
+            else:
+                dot.node(str(id(estado)))
+    
+    add_state(afnd.estadoInicial, set())
+    dot.render('afnd', format='png', view=True)
+
+# Ejemplo de uso:
+regex = "c*.a|b"
+nfa = algoritmo_thompson(regex)
+visualize_nfa(nfa)
