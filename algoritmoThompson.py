@@ -99,6 +99,12 @@ def algoritmo_thompson(expresionRegular):
             # Agrego a la pila
             pilaAutomatas.append(newAfnd)
             
+        # ESTRELLA DE KLEENE TENDRÁ 2 LÓGICAS:
+        #   1. Si es hacia un caracter -> Devolver AF
+        #   2. Si es hacia una agrupación -> Resolver agrupación, devolver AF y luego aplicarle Estrella de Kleene
+        
+        # TRATAR LAS AGRUPACIONES APARTE Y CONTAR AGRUPACIONES
+            
         print(pilaAutomatas)
         
         
