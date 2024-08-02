@@ -80,8 +80,29 @@ def estrellaKleene(afnd):
 
 # Creamos la función algoritmo_thompson para armar el AFND final mediante las operaciones        
 def algoritmo_thompson(expresionRegular):
-    
     pilaAutomatas = []
+    
+    # Manejo de agrupaciones
+    pilaAgrupaciones = []
+    nuevaERConAmpersands = ""
+    contadorAmpersands = 0 # Cuento los "&" en la ER definitiva para luego buscarlos por índices en la lista "pilaAgrupaciones"
+    
+    
+    agrupacion = ""
+    inicioAgrupacion = 100
+    for i in range(len(expresionRegular)):
+        if expresionRegular[i] != "(" and i < inicioAgrupacion:
+            nuevaERConAmpersands += expresionRegular[i]
+        if expresionRegular[i] == "(":
+            inicioAgrupacion = i
+        if i > inicioAgrupacion and expresionRegular[i] != ")":
+            agrupacion += expresionRegular[i]
+        elif expresionRegular[i] == ")":
+            afndAgrupacion = algoritmo_thompson(agrupacion)
+            pilaAgrupaciones.append(afndAgrupacion)
+            nuevaERConAmpersands += "&"
+            agrupacion = ""
+            inicioAgrupacion = 100 
     
     # Manejo de las Estrellas de Kleene
     pilaEstrellasKleene =[]  # Array para guardar los autómatas creados con Estrellas de Kleene   
@@ -89,40 +110,50 @@ def algoritmo_thompson(expresionRegular):
     nuevaExpresionRegularDefinitiva = "" # Esta variable guarda la ER sin los "*" para que luego pueda ser bien manejada
     contadorArrobas = 0 # Cuento los @ en la ER definitiva para luego buscarlos por índices en la lista "pilaEstrellasKleene"
     
-    if "*" in expresionRegular: # Si existe una Estrella de Kleene en la expresión...
-        for i in range(len(expresionRegular)):
-            if expresionRegular[i] == "*" and expresionRegular[i-1] != ")":
-                afndBasico = afnd_basico(expresionRegular[i-1])
+    if "*" in nuevaERConAmpersands: # Si existe una Estrella de Kleene en la expresión...
+        for i in range(len(nuevaERConAmpersands)):
+            if nuevaERConAmpersands[i] == "*" and nuevaERConAmpersands[i-1] != "&":
+                afndBasico = afnd_basico(nuevaERConAmpersands[i-1])
                 afndFinal = estrellaKleene(afndBasico)
                 pilaEstrellasKleene.append(afndFinal)
+            elif nuevaERConAmpersands[i] == "*" and nuevaERConAmpersands[i-1] == "&":
+                afndAgrupacion = pilaAgrupaciones[contadorAmpersands]
+                afndFinal = estrellaKleene(afndAgrupacion)
+                pilaEstrellasKleene.append(afndFinal)
+                contadorAmpersands += 1
                 
-        for i in range(len(expresionRegular)):    
-            if i != len(expresionRegular)-1 and expresionRegular[i+1] != "*":
-                nuevaExpresionRegular += expresionRegular[i]
-            elif i != len(expresionRegular)-1 and expresionRegular[i+1] == "*":
+        for i in range(len(nuevaERConAmpersands)):    
+            if i != len(nuevaERConAmpersands)-1 and nuevaERConAmpersands[i+1] != "*":
+                nuevaExpresionRegular += nuevaERConAmpersands[i]
+            elif i != len(nuevaERConAmpersands)-1 and nuevaERConAmpersands[i+1] == "*":
                 nuevaExpresionRegular += "@"
-            elif i == len(expresionRegular)-1:
-                nuevaExpresionRegular += expresionRegular[i]            
+            elif i == len(nuevaERConAmpersands)-1:
+                nuevaExpresionRegular += nuevaERConAmpersands[i]            
         
         nuevaExpresionRegularDefinitiva = nuevaExpresionRegular.replace("*", "")            
 
     if nuevaExpresionRegularDefinitiva == "":
-        nuevaExpresionRegularDefinitiva = expresionRegular    
+        nuevaExpresionRegularDefinitiva = nuevaERConAmpersands
                 
     # Recorremos la expresión regular
     for i in range(len(nuevaExpresionRegularDefinitiva)):
                 
         # Creamos un AF básico para el primer caracter
-        if i == 0 and nuevaExpresionRegularDefinitiva[i] != "(":
+        if i == 0 and nuevaExpresionRegularDefinitiva[i] != "&":
             if nuevaExpresionRegularDefinitiva[i] != "@":
                 afnd = afnd_basico(nuevaExpresionRegularDefinitiva[i])
                 pilaAutomatas.append(afnd)
             else:
                 afndEstrellaKleene = pilaEstrellasKleene[contadorArrobas]
                 pilaAutomatas.append(afndEstrellaKleene)
-                contadorArrobas+=1        
+                contadorArrobas+=1
+        elif i == 0 and nuevaExpresionRegularDefinitiva[i] == "&":
+            afndAgrupacion = pilaAgrupaciones[contadorAmpersands]
+            pilaAutomatas.append(afndAgrupacion)
+            contadorAmpersands += 1
+            
         # Caso de Concatenación
-        elif nuevaExpresionRegularDefinitiva[i] == "." and i != len(nuevaExpresionRegularDefinitiva)-1 and nuevaExpresionRegularDefinitiva[i+1] != "(":
+        elif nuevaExpresionRegularDefinitiva[i] == "." and i != len(nuevaExpresionRegularDefinitiva)-1 and nuevaExpresionRegularDefinitiva[i+1] != "&":
             if nuevaExpresionRegularDefinitiva[i+1] == "@":
                 afndEstrellaKleene = pilaEstrellasKleene[contadorArrobas]
                 afnd1 = pilaAutomatas.pop()
@@ -139,9 +170,15 @@ def algoritmo_thompson(expresionRegular):
         
                 # Agregamos a la pila
                 pilaAutomatas.append(newAfnd)
+        elif nuevaExpresionRegularDefinitiva[i] == "." and i != len(nuevaExpresionRegularDefinitiva)-1 and nuevaExpresionRegularDefinitiva[i+1] == "&":
+            afndAgrupacion = pilaAgrupaciones[contadorAmpersands]
+            afnd1 = pilaAutomatas.pop()
+            newAfnd = concatenacion(afnd1, afndAgrupacion)
+            pilaAutomatas.append(newAfnd)
+            contadorAmpersands += 1
             
         # Caso de Unión
-        elif nuevaExpresionRegularDefinitiva[i] == "|" and i != len(nuevaExpresionRegularDefinitiva)-1 and nuevaExpresionRegularDefinitiva[i+1] != "(":
+        elif nuevaExpresionRegularDefinitiva[i] == "|" and i != len(nuevaExpresionRegularDefinitiva)-1 and nuevaExpresionRegularDefinitiva[i+1] != "&":
             if nuevaExpresionRegularDefinitiva[i+1] == "@":
                 afndEstrellaKleene = pilaEstrellasKleene[contadorArrobas]
                 afnd1 = pilaAutomatas.pop()
@@ -159,12 +196,18 @@ def algoritmo_thompson(expresionRegular):
             
                 # Agrego a la pila
                 pilaAutomatas.append(newAfnd)
+        elif nuevaExpresionRegularDefinitiva[i] == "|" and i != len(nuevaExpresionRegularDefinitiva)-1 and nuevaExpresionRegularDefinitiva[i+1] == "&":
+            afndAgrupacion = pilaAgrupaciones[contadorAmpersands]
+            afnd1 = pilaAutomatas.pop()
+            newAfnd = union(afnd1, afndAgrupacion)
+            pilaAutomatas.append(newAfnd)
+            contadorAmpersands += 1
             
     return pilaAutomatas.pop()
 
 # Visualizar el Autómata
 
-def visualize_nfa(afnd):
+def graficarAutomata(afnd):
     dot = Digraph()
     
     def add_state(estado, estadosAgregados):
@@ -187,6 +230,6 @@ def visualize_nfa(afnd):
     dot.render('afnd', format='png', view=True)
 
 # Ejemplo de uso:
-regex = "c*.a|b"
-nfa = algoritmo_thompson(regex)
-visualize_nfa(nfa)
+expresionRegular = "a|b"
+afnd = algoritmo_thompson(expresionRegular)
+graficarAutomata(afnd)
