@@ -2,6 +2,7 @@
 Primer Proyecto - Trabajo Especial - "Algoritmo de Thompson"
 @authors: Araya Valentino, Conforti Angelo, Duran Faustino, Patiño Ignacio.
 """
+# La biblioteca Graphviz nos ayuda a visualizar los gráficos
 from graphviz import Digraph
 
 # 1. Convertir la Expresión Regular a un AFND mediante Algoritmo de Thompson
@@ -80,49 +81,70 @@ def estrellaKleene(afnd):
 
 # Creamos la función algoritmo_thompson para armar el AFND final mediante las operaciones        
 def algoritmo_thompson(expresionRegular):
+    
     pilaAutomatas = []
     
-    # Manejo de agrupaciones
-    pilaAgrupaciones = []
-    nuevaERConAmpersands = ""
+    pilaAgrupaciones = [] # Pila para guardar los AF de las agrupaciones resueltas
+    nuevaERConAmpersands = "" # Expresión pero reemplazando las agrupaciones por "&"
     contadorAmpersands = 0 # Cuento los "&" en la ER definitiva para luego buscarlos por índices en la lista "pilaAgrupaciones"
+    agrupacion = "" # Aquí vamos a ir guardando los caracteres que estén dentro de una agrupación
+    inicioAgrupacion = 100 # Definimos un número grande para que empiece a tomar la agrupación a partir del primer "("
     
-    
-    agrupacion = ""
-    inicioAgrupacion = 100
+    # Recorremos la expresión regular para obtener las agrupaciones
     for i in range(len(expresionRegular)):
-        if expresionRegular[i] != "(" and i < inicioAgrupacion:
+        
+        if expresionRegular[i] != "(" and i < inicioAgrupacion: 
+            # Si estamos fuera de una agrupación agregamos el caracter a la neuva expresión
             nuevaERConAmpersands += expresionRegular[i]
+            
         if expresionRegular[i] == "(":
+            # Si encontramos el inicio de la agrupación asignamos el índice a la variable
             inicioAgrupacion = i
+    
         if i > inicioAgrupacion and expresionRegular[i] != ")":
+            # Si estamos dentro de la agrupación agregamos el caracter a la variable "agrupación"
             agrupacion += expresionRegular[i]
+            
         elif expresionRegular[i] == ")":
+            # Si encontramos el cierre de la agrupación, le aplicamos el algoritmo de thompson y obtenemos un AFND de esta expresión 
             afndAgrupacion = algoritmo_thompson(agrupacion)
+            # Se agrega a la pila de agrupaciones
             pilaAgrupaciones.append(afndAgrupacion)
+            # Y en la nueva expresión se agrega un "&" haciendo referencia a la agrupación
             nuevaERConAmpersands += "&"
+            # Cuando se termina de procesar una agrupación, se vuelve a inicializar la variable "agrupación" e "inicioAgrupacion" a sus valores iniciales
             agrupacion = ""
             inicioAgrupacion = 100 
     
     # Manejo de las Estrellas de Kleene
-    pilaEstrellasKleene =[]  # Array para guardar los autómatas creados con Estrellas de Kleene   
+    pilaEstrellasKleene =[]  # Lista para guardar los autómatas creados con Estrellas de Kleene   
     nuevaExpresionRegular = "" # Creamos una nueva expresión regular reemplazando el caracter afectado por una estrella de Kleene por un "@"
     nuevaExpresionRegularDefinitiva = "" # Esta variable guarda la ER sin los "*" para que luego pueda ser bien manejada
     contadorArrobas = 0 # Cuento los @ en la ER definitiva para luego buscarlos por índices en la lista "pilaEstrellasKleene"
     
     if "*" in nuevaERConAmpersands: # Si existe una Estrella de Kleene en la expresión...
+        # Recorremos la nueva expresión con las agrupaciones reemplazadas por "&"
         for i in range(len(nuevaERConAmpersands)):
+            # Si estamos en una Estrella de Kleene, y el caracter anterior no es una agrupación (es un caracter)
             if nuevaERConAmpersands[i] == "*" and nuevaERConAmpersands[i-1] != "&":
+                # Obtenemos el AF básico y le aplicamos la Estrella de Kleene
                 afndBasico = afnd_basico(nuevaERConAmpersands[i-1])
                 afndFinal = estrellaKleene(afndBasico)
+                # Agregamos el AFND final a la pila de estrellas de kleene
                 pilaEstrellasKleene.append(afndFinal)
+                
+            # Si el caracter anterior a la estrella de kleene es un "&" (agrupación)
             elif nuevaERConAmpersands[i] == "*" and nuevaERConAmpersands[i-1] == "&":
+                # Buscamos la agrupación en la pila de agrupaciones y le aplicamos la estrella de kleene
                 afndAgrupacion = pilaAgrupaciones[contadorAmpersands]
                 afndFinal = estrellaKleene(afndAgrupacion)
+                # Agregamos el AFND final a la pila de estrellas de kleene
                 pilaEstrellasKleene.append(afndFinal)
+                # Sumamos 1 al contador
                 contadorAmpersands += 1
                 
-        for i in range(len(nuevaERConAmpersands)):    
+        # Volvemos a recorrer y reemplazamos por "@" a lo que le aplicamos Estrellas de Kleene
+        for i in range(len(nuevaERConAmpersands)):
             if i != len(nuevaERConAmpersands)-1 and nuevaERConAmpersands[i+1] != "*":
                 nuevaExpresionRegular += nuevaERConAmpersands[i]
             elif i != len(nuevaERConAmpersands)-1 and nuevaERConAmpersands[i+1] == "*":
@@ -130,6 +152,7 @@ def algoritmo_thompson(expresionRegular):
             elif i == len(nuevaERConAmpersands)-1:
                 nuevaExpresionRegular += nuevaERConAmpersands[i]            
         
+        # Quitamos los "*" de la ER
         nuevaExpresionRegularDefinitiva = nuevaExpresionRegular.replace("*", "")            
 
     if nuevaExpresionRegularDefinitiva == "":
@@ -140,26 +163,36 @@ def algoritmo_thompson(expresionRegular):
                 
         # Creamos un AF básico para el primer caracter
         if i == 0 and nuevaExpresionRegularDefinitiva[i] != "&":
+            
+            # Si el primer caracter no es una agrupación "&" ni una estrella de kleene "@"
             if nuevaExpresionRegularDefinitiva[i] != "@":
                 afnd = afnd_basico(nuevaExpresionRegularDefinitiva[i])
                 pilaAutomatas.append(afnd)
+            
+            # Si el caracter es una estrella de kleene "@"
             else:
                 afndEstrellaKleene = pilaEstrellasKleene[contadorArrobas]
                 pilaAutomatas.append(afndEstrellaKleene)
                 contadorArrobas+=1
+                
+        # Si el caracter es una agrupación
         elif i == 0 and nuevaExpresionRegularDefinitiva[i] == "&":
             afndAgrupacion = pilaAgrupaciones[contadorAmpersands]
             pilaAutomatas.append(afndAgrupacion)
             contadorAmpersands += 1
             
         # Caso de Concatenación
+        # Si econtramos una concatenación "." y el caracter siguiente a ésta, no es una agrupación "@"
         elif nuevaExpresionRegularDefinitiva[i] == "." and i != len(nuevaExpresionRegularDefinitiva)-1 and nuevaExpresionRegularDefinitiva[i+1] != "&":
+            # Si el caracter siguiente a la concatenación es una Estrella de Kleene
             if nuevaExpresionRegularDefinitiva[i+1] == "@":
                 afndEstrellaKleene = pilaEstrellasKleene[contadorArrobas]
                 afnd1 = pilaAutomatas.pop()
                 newAfnd = concatenacion(afnd1, afndEstrellaKleene)
                 pilaAutomatas.append(newAfnd)
                 contadorArrobas += 1
+                
+            # Si no es una estrella de Kleene (será otro caracter)
             else:
                 # Creamos AF básico del caracter siguiente a la concatenación        
                 afnd2 = afnd_basico(nuevaExpresionRegularDefinitiva[i+1])
@@ -170,6 +203,8 @@ def algoritmo_thompson(expresionRegular):
         
                 # Agregamos a la pila
                 pilaAutomatas.append(newAfnd)
+            
+        # Si econtramos una concatenación "." y el caracter siguiente a ésta, es una agrupación "@"
         elif nuevaExpresionRegularDefinitiva[i] == "." and i != len(nuevaExpresionRegularDefinitiva)-1 and nuevaExpresionRegularDefinitiva[i+1] == "&":
             afndAgrupacion = pilaAgrupaciones[contadorAmpersands]
             afnd1 = pilaAutomatas.pop()
@@ -206,11 +241,13 @@ def algoritmo_thompson(expresionRegular):
     return pilaAutomatas.pop()
 
 # Visualizar el Autómata
-
 def graficarAutomata(afnd):
+    # Este objeto representa el grafo del autómata
     dot = Digraph()
     
+    # Esta función agrega estados y transiciones al grafo
     def add_state(estado, estadosAgregados):
+        # Agregamos el estado si no está
         if estado not in estadosAgregados:
             estadosAgregados.add(estado)
             for caracter, estadoSiguiente in estado.transiciones.items():
@@ -230,6 +267,6 @@ def graficarAutomata(afnd):
     dot.render('afnd', format='png', view=True)
 
 # Ejemplo de uso:
-expresionRegular = "a|b"
+expresionRegular = "a.(a|b)*"
 afnd = algoritmo_thompson(expresionRegular)
 graficarAutomata(afnd)
